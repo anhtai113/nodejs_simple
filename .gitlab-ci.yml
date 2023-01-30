@@ -1,0 +1,47 @@
+variables:
+  GIT_STRATEGY: clone
+
+image: node:14-stretch
+
+stages:
+  - test
+  - build
+  - deploy
+
+cache:
+  paths:
+    - node_modules/
+
+before_script:
+  - apt-get update
+  - apt-get install jq python-pip zip -y
+  - npm config set prefix /usr/local
+
+test:
+  stage: test
+  when: always
+  script:
+    - ls -la 
+build:
+  stage: build
+  when: manual
+  before_script:
+    - apt-get update
+    - apt-get install jq python-pip zip -y
+  script:
+    - echo "***Install docker***"
+    - apt install -y apt-transport-https ca-certificates curl software-properties-common gnupg2 zip
+    - curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+    - add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+    - apt update && apt install -y docker-ce
+    - service docker start
+    - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
+    - docker login -u ${registryUser} -p ${registryPass}
+    - docker build -t ${API_IMAGE_TAG} .
+    - docker push ${API_IMAGE_TAG}
+    - rm -rf node_modules/ 
+  only:
+    refs:
+      - develop
+      - main
+  
